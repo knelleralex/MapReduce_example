@@ -1,0 +1,85 @@
+# Databricks notebook source
+# student: Alexander Kneller
+
+#for this import line to work - we must first "create table" in the data section, and copy its path
+rdd1 = sc.textFile("/FileStore/tables/7m42u7e11499948446083/Planets_and_Jupiter_moons.csv")
+
+#split each line to list and convert nums
+rdd1 = rdd1.map(lambda x: x.split(','))
+rdd1 = rdd1.map(lambda x:(x[0],x[1],float(x[2]),float(x[3]),float(x[4])))
+
+#for self check uncomment:
+#print rdd1.take(3)
+
+# FIRST PART: R_SQUARE - beginning
+
+#divide to jupiter RDD and sun RDD for counts
+rdd_sun = rdd1.filter(lambda x:x[0] == 'Sun')
+rdd_jup = rdd1.filter(lambda x:x[0] == 'Jupiter')
+N_sun = rdd_sun.count()
+N_jup = rdd_jup.count()
+
+#for self check uncomment:
+#print N_sun,N_jup
+
+#calculating y_hat - sum of observed times (per mass) and averages
+obst = rdd1.map(lambda x:(x[0],x[2]))
+sums = obst.reduceByKey(lambda x,y:x+y)
+avgs = sums.map(lambda x: (x[0],((x[0]=='Jupiter')*(x[1]/N_jup)+(x[0]=='Sun')*(x[1]/N_sun))))
+
+#for self check uncomment:
+#print avgs.take(2)
+
+#join observed times and their averages to values-tuple and calculate squares for <SStot>
+join1 = obst.join(avgs)
+totals = join1.map(lambda x:(x[0],(x[1][0]-x[1][1])**2))
+
+#for self check uncomment:
+#print totals.take(25)
+
+#calculating squares for residuals <SSreg>
+resids = rdd1.map(lambda x: (x[0],(x[2]-x[4])**2))
+
+#summarize both
+totals1 = totals.reduceByKey(lambda x,y:x+y)
+resids1 = resids.reduceByKey(lambda x,y:x+y)
+
+#for self check uncomment:
+#print totals1.take(2)
+#print resids1.take(2)
+
+#join and solve!! 1-(SSreg/SStot)
+join2 = resids1.join(totals1)
+R_sqr = join2.map(lambda x:(x[0],1-(x[1][0]/x[1][1])))
+
+#the result is: (uncomment for output)
+#print R_sqr.take(2)
+
+# FIRST PART: R_SQUARE - end
+
+# SECOND PART: MOST DISTANT MOONS - beginning
+
+#create RDD with <key=mass> and <value=distances>
+dists = rdd1.map(lambda x:(x[0],x[3]))
+
+#for self check uncomment:
+#print dists.take(25)
+
+#reduce to maximum dist - per each mass
+maxs = dists.reduceByKey(lambda x,y:max(x,y))
+
+#for self check uncomment:
+#print maxs.take(2)
+
+# SECOND PART: MOST DISTANT MOONS - end
+
+# THIRD PART - UNITE BOTH PARTS - beginning
+
+final_result = R_sqr.join(maxs)
+print 'RESULTS: ',final_result.take(2)
+
+
+
+# COMMAND ----------
+
+
